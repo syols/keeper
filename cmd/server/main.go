@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"keeper/config"
-	"keeper/internal/app"
+	"github.com/syols/keeper/config"
+	"github.com/syols/keeper/internal/app"
 )
 
 func main() {

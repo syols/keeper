@@ -8,8 +8,8 @@ import (
 	"sync"
 	"syscall"
 
-	"keeper/config"
-	"keeper/internal/pkg"
+	"github.com/syols/keeper/config"
+	"github.com/syols/keeper/internal/pkg"
 )
 
 // Server struct

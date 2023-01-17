@@ -4,7 +4,7 @@ server:
   address:
     host: 0.0.0.0
     port: 3200
-  database: "postgres://postgres:postgres@localhost/postgres?sslmode=disable"
+  database: "postgres://postgres:postgres@localhost/server?sslmode=disable"
   sign: "some_sign"
 
 client:

@@ -6,7 +6,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/docker/distribution/registry/auth"
 
-	"keeper/config"
+	"github.com/syols/keeper/config"
 )
 
 type UserClaims struct {

@@ -3,7 +3,7 @@ package models
 import (
 	"github.com/go-playground/validator/v10"
 
-	pb "keeper/internal/rpc/proto"
+	pb "github.com/syols/keeper/internal/rpc/proto"
 )
 
 const (
@@ -15,14 +15,14 @@ const (
 
 type Details interface {
 	SetPrivateData(record *pb.Record)
-	SetRecordId(id int)
+	SetRecordId(id int) Details
 }
 
 type Record struct {
 	ID          int    `json:"id" db:"id"`
 	UserID      int    `json:"user_id" db:"user_id"`
 	Metadata    string `json:"metadata" db:"metadata"`
-	DetailType  string `json:"detail" db:"detail" validate:"oneof=TEXT BLOB CARD DETAIL"`
+	DetailType  string `json:"detailtype" db:"detailtype" validate:"oneof=TEXT BLOB CARD DETAIL"`
 	PrivateData Details
 }
 

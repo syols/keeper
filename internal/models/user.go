@@ -3,7 +3,7 @@ package models
 import (
 	"github.com/go-playground/validator/v10"
 
-	pb "keeper/internal/rpc/proto"
+	pb "github.com/syols/keeper/internal/rpc/proto"
 )
 
 type User struct {

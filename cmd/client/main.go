@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"keeper/config"
-	"keeper/internal/app"
+	"github.com/syols/keeper/config"
+	"github.com/syols/keeper/internal/app"
 )
 
 func main() {
@@ -16,9 +16,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server, err := app.NewClient(context.Background(), settings)
+	server, err := app.NewClient(settings)
 	if err != nil {
 		log.Fatal(err)
 	}
-	server.Run()
+
+	if err := server.Run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 }

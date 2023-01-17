@@ -4,7 +4,7 @@ CREATE TABLE records (
                          id SERIAL PRIMARY KEY,
                          user_id INT REFERENCES users (id),
                          metadata TEXT NOT NULL UNIQUE,
-                         detail detail NOT NULL
+                         detailType detail NOT NULL
 );
 
 CREATE TABLE text_details (

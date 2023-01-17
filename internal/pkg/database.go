@@ -11,7 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 
-	"keeper/internal/models"
+	"github.com/syols/keeper/internal/models"
 )
 
 const ScriptPath = "scripts/query/"
@@ -21,9 +21,10 @@ type ReadDetailFunc func(ctx context.Context, record models.Record) (models.Deta
 type RelativePath string
 
 type Database struct {
-	Scripts     map[string]string
-	connection  DatabaseConnectionCreator
-	readDetails map[string]ReadDetailFunc
+	Scripts      map[string]string
+	connection   DatabaseConnectionCreator
+	readDetails  map[string]ReadDetailFunc
+	queryDetails map[string]string
 }
 
 func NewDatabase(connectionCreator DatabaseConnectionCreator) (db Database, err error) {
@@ -36,6 +37,13 @@ func NewDatabase(connectionCreator DatabaseConnectionCreator) (db Database, err 
 		models.BlobType:  db.blobDetails,
 		models.CardType:  db.cardDetails,
 		models.LoginType: db.loginDetails,
+	}
+
+	db.queryDetails = map[string]string{
+		models.TextType:  "details/create_text.sql",
+		models.BlobType:  "details/create_blob.sql",
+		models.CardType:  "details/create_card.sql",
+		models.LoginType: "details/create_login.sql",
 	}
 	err = connectionCreator.Migrate()
 	return
@@ -58,9 +66,6 @@ func (d *Database) Login(ctx context.Context, user *models.User) (*models.User, 
 	if err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	return bindUser(rows)
 }
 
@@ -72,9 +77,6 @@ func (d *Database) UserRecords(ctx context.Context, username string) ([]models.R
 
 	rows, err := d.execute(ctx, "records.sql", models.Record{UserID: user.ID})
 	if err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -111,9 +113,6 @@ func (d *Database) FindRecords(ctx context.Context, username string) ([]models.R
 	if err != nil {
 		return nil, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 
 	var values []models.Record
 	for rows.Next() {
@@ -146,55 +145,29 @@ func (d *Database) SaveRecord(ctx context.Context, username string, record model
 	record.UserID = user.ID
 
 	rows, err := d.execute(ctx, "create_record.sql", record)
+	if err != nil {
+		return err
+	}
+
 	var value models.Record
 	if rows.Next() {
 		if err := rows.StructScan(&value); err != nil {
 			return err
 		}
 	}
-	err = nil
 
-	record.PrivateData.SetRecordId(value.ID)
-	if value.DetailType == models.TextType {
-		_, err = d.execute(ctx, "details/create_text.sql", record.PrivateData)
+	details := record.PrivateData.SetRecordId(value.ID)
+	query, isOk := d.queryDetails[value.DetailType]
+	if !isOk {
+		return errors.New("incorrect record detail type")
 	}
 
-	if value.DetailType == models.BlobType {
-		_, err = d.execute(ctx, "details/create_blob.sql", record.PrivateData)
-	}
-
-	if value.DetailType == models.CardType {
-		_, err = d.execute(ctx, "details/create_card.sql", record.PrivateData)
-	}
-
-	if value.DetailType == models.LoginType {
-		_, err = d.execute(ctx, "details/create_login.sql", record.PrivateData)
-	}
-	return nil
+	_, err = d.execute(ctx, query, details)
+	return err
 }
 
 func (d *Database) Truncate(ctx context.Context) error {
 	_, err := d.execute(ctx, "truncate.sql", models.Record{})
-	return err
-}
-
-func (d *Database) createTextDetails(ctx context.Context, detail models.TextDetails) error {
-	_, err := d.execute(ctx, "details/create_text.sql", detail)
-	return err
-}
-
-func (d *Database) createBlobDetails(ctx context.Context, detail models.BlobDetails) error {
-	_, err := d.execute(ctx, "details/create_blob.sql", detail)
-	return err
-}
-
-func (d *Database) createCardDetails(ctx context.Context, detail models.CardDetails) error {
-	_, err := d.execute(ctx, "details/create_card.sql", detail)
-	return err
-}
-
-func (d *Database) createLoginDetails(ctx context.Context, detail models.LoginDetails) error {
-	_, err := d.execute(ctx, "details/create_login.sql", detail)
 	return err
 }
 
@@ -259,15 +232,10 @@ func (d *Database) loginDetails(ctx context.Context, record models.Record) (mode
 }
 
 func (d *Database) user(ctx context.Context, username string) (*models.User, error) {
-	user := models.User{
-		Username: username,
-	}
-
-	rows, err := d.execute(ctx, "user.sql", user)
+	rows, err := d.execute(ctx, "user.sql", models.User{Username: username})
 	if err != nil {
 		return nil, err
 	}
-
 	return bindUser(rows)
 }
 
@@ -282,29 +250,40 @@ func (d *Database) execute(ctx context.Context, filename string, model interface
 		return nil, err
 	}
 	defer d.connection.Close(db)
-	return db.NamedQuery(script, model)
+
+	rows, err := db.NamedQuery(*script, model)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
-func (d *Database) script(filename string) (string, error) {
+func (d *Database) script(filename string) (*string, error) {
 	script, isOk := d.Scripts[filename]
 	if !isOk {
 		bytes, err := ioutil.ReadFile(filepath.Join(ScriptPath, filename))
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		script = string(bytes)
 		d.Scripts[filename] = script
 	}
-	return script, nil
+	return &script, nil
 }
 
 func bindUser(rows *sqlx.Rows) (*models.User, error) {
+	if !rows.Next() {
+		return nil, errors.New("value not found")
+	}
+
 	var value models.User
-	if rows.Next() {
-		if err := rows.StructScan(&value); err != nil {
-			return nil, err
-		}
+	if err := rows.StructScan(&value); err != nil {
+		return nil, err
 	}
 	return &value, nil
 }

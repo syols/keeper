@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"keeper/config"
-	"keeper/internal/models"
-	pb "keeper/internal/rpc/proto"
+	"github.com/syols/keeper/config"
+	"github.com/syols/keeper/internal/models"
+	pb "github.com/syols/keeper/internal/rpc/proto"
 )
 
 type GrpcService struct {
@@ -74,9 +74,12 @@ func (g GrpcService) Registration(ctx context.Context, request *pb.SignInRequest
 
 func (g GrpcService) Authorization(ctx context.Context, request *pb.SignInRequest) (*pb.SignInResponse, error) {
 	user := models.NewUser(request)
-	_, err := g.database.Login(ctx, &user)
+	value, err := g.database.Login(ctx, &user)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "incorrect user")
+	}
+	if value == nil {
+		return nil, status.Error(codes.NotFound, "User not found")
 	}
 
 	return g.createSignInResponse(request)
@@ -137,6 +140,8 @@ func (g GrpcService) SyncRecord(token *pb.Token, srv pb.Keeper_SyncRecordServer)
 				Metadata:    userRecord.Metadata,
 				DetailType:  userRecord.DetailType,
 			}
+
+			userRecord.PrivateData.SetPrivateData(&record)
 			if err := srv.Send(&record); err != nil {
 				errs <- status.Errorf(codes.Internal, err.Error())
 			}

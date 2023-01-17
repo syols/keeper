@@ -3,12 +3,12 @@ package models
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "keeper/internal/rpc/proto"
+	pb "github.com/syols/keeper/internal/rpc/proto"
 )
 
 type CardDetails struct {
 	ID         *int                   `json:"id" db:"id"`
-	RecordID   int                    `json:"record_id" db:"column:detail_id"`
+	RecordID   int                    `json:"record_id" db:"record_id"`
 	Number     string                 `json:"number" db:"column:number"`
 	Cardholder string                 `json:"cardholder" db:"column:cardholder"`
 	Cvc        uint32                 `json:"cvc" db:"column:cvc"`
@@ -37,6 +37,7 @@ func (b CardDetails) SetPrivateData(record *pb.Record) {
 	}}
 }
 
-func (b CardDetails) SetRecordId(id int) {
+func (b CardDetails) SetRecordId(id int) Details {
 	b.RecordID = id
+	return b
 }
