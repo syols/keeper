@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package internal.rpc.proto;
+
+option go_package = "internal/rpc/proto";
+
+message SignInRequest {
+  string login = 1;
+  string password = 2;
+}
+
+message SignInResponse {
+  Token access = 1;
+  Token refresh = 2;
+}
+
+message Token {
+  string value = 1;
+}
+
+message LoginDetails {
+  string login = 1;
+  optional string password = 2;
+}
+
+message TextDetails {
+  string text = 1;
+}
+
+message BlobDetails {
+  bytes blob = 1;
+}
+
+message CardDetails {
+  string number = 1;
+  optional string cardholder = 2;
+  optional uint32 cvc = 3;
+  optional google.protobuf.Timestamp expiration = 4;
+}
+
+message Record {
+  optional uint32 id = 1;
+  Token access_token = 2;
+  string metadata = 3;
+  oneof private_data {
+      BlobDetails blob = 4;
+      CardDetails card = 5;
+      LoginDetails login = 6;
+      TextDetails text = 7;
+  }
+  string detail_type = 8;
+}
+
+service Keeper {
+  rpc Registration(SignInRequest) returns (SignInResponse);
+  rpc Authorization(SignInRequest) returns (SignInResponse);
+  rpc AccessTokenRequest(Token) returns (Token);
+
+  rpc AddRecord(Record) returns (Record);
+  rpc SyncRecord(Token) returns (stream Record);
+}
