@@ -47,6 +47,7 @@ func NewConfig(path string) (settings Config, err error) {
 	return settings.set(NewEnvironmentVariables().Options()...), nil
 }
 
+// Config Set options to config
 func (s *Config) set(options ...Option) Config {
 	for _, fn := range options {
 		fn(s)
@@ -59,6 +60,7 @@ func (a *Address) String() string {
 	return fmt.Sprintf("%s:%d", a.Host, a.Port)
 }
 
+// Config set default from yaml
 func (s *Config) setDefault(configPath string) error {
 	file, err := ioutil.ReadFile(configPath)
 	if err != nil {

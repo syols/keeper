@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -27,10 +28,9 @@ type Choices map[int]string
 
 // Client struct
 type Client struct {
-	authorizer pkg.Authorizer
-	client     pb.KeeperClient
-	database   pkg.Database
-	settings   config.Config
+	client   pb.KeeperClient
+	database pkg.Database
+	settings config.Config
 }
 
 func NewClient(settings config.Config) (Client, error) {
@@ -41,6 +41,10 @@ func NewClient(settings config.Config) (Client, error) {
 
 	dbConn := pkg.NewDatabaseURLConnection(*settings.Client.DatabaseConnectionString)
 	database, err := pkg.NewDatabase(dbConn)
+	if err != nil {
+		return Client{}, err
+	}
+
 	return Client{
 		client:   pb.NewKeeperClient(conn),
 		database: database,
@@ -72,6 +76,10 @@ func grpcClient(settings config.Config) (*grpc.ClientConn, error) {
 }
 
 func (s *Client) Run(ctx context.Context) error {
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	s.shutdown(ctx)
+
 	err := s.database.Truncate(ctx)
 	if err != nil {
 		return err
@@ -98,15 +106,15 @@ func (s *Client) Run(ctx context.Context) error {
 		return err
 	}
 
-	err2 := s.getUserDetails(ctx, value, user, token)
-	if err2 != nil {
-		return err2
+	err = s.getUserDetails(ctx, user, token)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func (s *Client) getUserDetails(ctx context.Context, value string, user models.User, token *pb.SignInResponse) error {
-	value = s.choose(Choices{1: "Show data", 2: "Write data"})
+func (s *Client) getUserDetails(ctx context.Context, user models.User, token *pb.SignInResponse) error {
+	value := s.choose(Choices{1: "Show data", 2: "Write data"})
 	metadata := s.getValue("Metadata:")
 	switch value {
 	case "1":
@@ -114,13 +122,11 @@ func (s *Client) getUserDetails(ctx context.Context, value string, user models.U
 		if err != nil {
 			return err
 		}
-		break
 	case "2":
 		err := s.writeData(ctx, token, metadata)
 		if err != nil {
 			return err
 		}
-		break
 	}
 	return nil
 }
@@ -205,12 +211,11 @@ func (s *Client) syncDatabase(ctx context.Context, username string, token *pb.Si
 				}
 
 				record := models.NewRecord(value)
-				if record == nil {
-					log.Println("Empty record")
-				}
-
-				if err := s.database.SaveRecord(ctx, username, *record); err != nil {
-					return
+				if record != nil {
+					err := s.database.SaveRecord(ctx, username, *record)
+					if err != nil {
+						return
+					}
 				}
 			}
 		}

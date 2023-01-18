@@ -1,14 +1,14 @@
 build:
 	echo "Build agent"
-	go build -o bin/agent cmd/agent/main.go
+	go build -o bin/client cmd/client/main.go
 	echo "Build agent"
 	go build -o bin/server cmd/server/main.go
 
 server:
 	go run cmd/server/main.go
 
-agent:
-	go run cmd/agent/main.go
+client:
+	go run cmd/client/main.go
 
 imports:
 	goimports -l -w .
@@ -24,15 +24,5 @@ vet:
 
 errors:
 	errcheck -ignoretests -blank ./...
-
-deps:
-	godep restore
-
-test: deps
-	go test -v ./...
-
-coverage:
-	go test -v -coverpkg=./... -coverprofile=profile.cov ./...
-	go tool cover -func profile.cov
 
 run: server

@@ -35,7 +35,7 @@ func NewGrpcService(ctx context.Context, settings config.Config) (GrpcService, e
 		return GrpcService{}, err
 	}
 
-	grpcServer, err := grpcServer(settings, err)
+	serve, err := grpcServer(settings)
 	if err != nil {
 		return GrpcService{}, err
 	}
@@ -44,14 +44,14 @@ func NewGrpcService(ctx context.Context, settings config.Config) (GrpcService, e
 		ctx:        ctx,
 		authorizer: NewAuthorizer(settings),
 		database:   database,
-		grpcServer: grpcServer,
+		grpcServer: serve,
 		settings:   settings,
 	}
 	pb.RegisterKeeperServer(service.grpcServer, service)
 	return service, nil
 }
 
-func grpcServer(settings config.Config, err error) (*grpc.Server, error) {
+func grpcServer(settings config.Config) (*grpc.Server, error) {
 	// Added to simplify debugging, environment variables are supported and TLS
 	if settings.Server.Certificate == nil || settings.Server.PrivateKey == nil {
 		var opts []grpc.ServerOption
@@ -60,7 +60,7 @@ func grpcServer(settings config.Config, err error) (*grpc.Server, error) {
 
 	cert, err := tls.X509KeyPair([]byte(*settings.Server.Certificate), []byte(*settings.Server.PrivateKey))
 	if err != nil {
-		log.Fatal("failed to load cert and key", err)
+		log.Fatal("failed to load cert and key", err.Error())
 	}
 	cred := credentials.NewServerTLSFromCert(&cert)
 	return grpc.NewServer(grpc.Creds(cred)), nil

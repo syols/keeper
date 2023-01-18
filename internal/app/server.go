@@ -15,7 +15,6 @@ import (
 // Server struct
 type Server struct {
 	ctx         context.Context
-	authorizer  pkg.Authorizer
 	grpcService pkg.GrpcService
 	settings    config.Config
 }
