@@ -24,7 +24,10 @@ func newVariable(env, name string) Variable {
 
 func NewEnvironmentVariables() EnvironmentVariables {
 	return EnvironmentVariables{
-		newVariable("SIGN", "sn"): withSign,
+		newVariable("SIGN", "sn"):        withSign,
+		newVariable("PRIVATE_KEY", "p"):  withPrivateKey,
+		newVariable("SERVER_CERT", "cr"): withServerCert,
+		newVariable("CLIENT_CERT", "c"):  withClientCert,
 	}
 }
 
@@ -46,5 +49,23 @@ func (e EnvironmentVariables) Options() (options []Option) {
 func withSign(value string) Option {
 	return func(s *Config) {
 		s.Server.Sign = value
+	}
+}
+
+func withPrivateKey(value string) Option {
+	return func(s *Config) {
+		s.Server.PrivateKey = &value
+	}
+}
+
+func withServerCert(value string) Option {
+	return func(s *Config) {
+		s.Server.Certificate = &value
+	}
+}
+
+func withClientCert(value string) Option {
+	return func(s *Config) {
+		s.Client.Certificate = &value
 	}
 }

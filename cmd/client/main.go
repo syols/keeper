@@ -13,15 +13,13 @@ func main() {
 	log.SetOutput(os.Stdout)
 	settings, err := config.NewConfig("client.yml")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 
-	server, err := app.NewClient(settings)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := server.Run(context.Background()); err != nil {
-		log.Fatal(err)
+	client, err := app.NewClient(settings)
+	if err == nil {
+		if err := client.Run(context.Background()); err != nil {
+			log.Fatal(err.Error())
+		}
 	}
 }

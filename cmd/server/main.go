@@ -13,12 +13,12 @@ func main() {
 	log.SetOutput(os.Stdout)
 	settings, err := config.NewConfig("server.yml")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 
 	server, err := app.NewServer(context.Background(), settings)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 	server.Run()
 }

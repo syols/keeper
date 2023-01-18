@@ -21,12 +21,15 @@ type ServerConfig struct {
 	Address                  Address `yaml:"address" json:"address"`
 	DatabaseConnectionString *string `yaml:"database,omitempty" json:"database,omitempty"`
 	Sign                     string  `yaml:"sign"`
+	PrivateKey               *string `yaml:"pkey,omitempty" json:"pkey,omitempty"`
+	Certificate              *string `yaml:"certificate,omitempty" json:"certificate,omitempty"`
 }
 
 // ClientConfig Client config struct
 type ClientConfig struct {
 	Address                  Address `yaml:"address" json:"address"`
 	DatabaseConnectionString *string `yaml:"database,omitempty" json:"database,omitempty"`
+	Certificate              *string `yaml:"certificate,omitempty" json:"certificate,omitempty"`
 }
 
 // Address struct

@@ -3,6 +3,8 @@ package app
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/syols/keeper/config"
@@ -31,8 +34,7 @@ type Client struct {
 }
 
 func NewClient(settings config.Config) (Client, error) {
-	uri := fmt.Sprintf(":%d", settings.Client.Address.Port)
-	conn, err := grpc.Dial(uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpcClient(settings)
 	if err != nil {
 		return Client{}, err
 	}
@@ -46,8 +48,32 @@ func NewClient(settings config.Config) (Client, error) {
 	}, nil
 }
 
+func grpcClient(settings config.Config) (*grpc.ClientConn, error) {
+	uri := fmt.Sprintf(":%d", settings.Client.Address.Port)
+	if settings.Client.Certificate == nil {
+		// Added to simplify debugging, environment variables are supported and TLS
+		return grpc.Dial(uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	cert := []byte(*settings.Client.Certificate)
+	cp := x509.NewCertPool()
+	if !cp.AppendCertsFromPEM(cert) {
+		return nil, errors.New("incorrect certificates")
+	}
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: false,
+		RootCAs:            cp,
+	}
+	conn, err := grpc.Dial(uri, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
 func (s *Client) Run(ctx context.Context) error {
-	if err := s.database.Truncate(ctx); err != nil {
+	err := s.database.Truncate(ctx)
+	if err != nil {
 		return err
 	}
 
@@ -56,28 +82,42 @@ func (s *Client) Run(ctx context.Context) error {
 		Username: s.getValue("User:"),
 		Password: s.getValue("Password:"),
 	}
+
 	token, err := s.requestToken(ctx, value, user)
 	if err != nil {
 		return err
 	}
-	if err := s.database.Register(ctx, &user); err != nil {
+
+	err = s.database.Register(ctx, &user)
+	if err != nil {
 		return err
 	}
 
-	if err := s.syncDatabase(ctx, user.Username, token); err != nil {
+	err = s.syncDatabase(ctx, user.Username, token)
+	if err != nil {
 		return err
 	}
 
+	err2 := s.getUserDetails(ctx, value, user, token)
+	if err2 != nil {
+		return err2
+	}
+	return nil
+}
+
+func (s *Client) getUserDetails(ctx context.Context, value string, user models.User, token *pb.SignInResponse) error {
 	value = s.choose(Choices{1: "Show data", 2: "Write data"})
 	metadata := s.getValue("Metadata:")
 	switch value {
 	case "1":
-		if err := s.showData(ctx, metadata, user); err != nil {
+		err := s.showData(ctx, metadata, user)
+		if err != nil {
 			return err
 		}
 		break
 	case "2":
-		if err := s.writeData(ctx, token, metadata); err != nil {
+		err := s.writeData(ctx, token, metadata)
+		if err != nil {
 			return err
 		}
 		break
@@ -86,11 +126,11 @@ func (s *Client) Run(ctx context.Context) error {
 }
 
 func (s *Client) showData(ctx context.Context, metadata string, user models.User) error {
-	fmt.Println(metadata)
 	records, err := s.database.UserRecords(ctx, user.Username)
 	if err != nil {
 		return err
 	}
+
 	for _, r := range records {
 		fmt.Println(r)
 	}
@@ -98,33 +138,34 @@ func (s *Client) showData(ctx context.Context, metadata string, user models.User
 }
 
 func (s *Client) writeData(ctx context.Context, token *pb.SignInResponse, metadata string) error {
-	v := pb.Record{
+	record := pb.Record{
 		AccessToken: token.Access,
 		Metadata:    metadata,
 		DetailType:  strings.ToUpper(s.getValue("DetailType:")),
 	}
-	switch v.DetailType {
+	switch record.DetailType {
 	case models.TextType:
-		models.TextDetails{Data: s.getValue("Text:")}.SetPrivateData(&v)
+		models.TextDetails{Data: s.getValue("Text:")}.SetPrivateData(&record)
 	case models.LoginType:
 		models.LoginDetails{
 			Login:    s.getValue("Login:"),
-			Password: s.getValue("Password:")}.SetPrivateData(&v)
+			Password: s.getValue("Password:")}.SetPrivateData(&record)
 	case models.CardType:
 		value, err := strconv.Atoi(s.getValue("Cvc:"))
 		if err != nil {
 			return err
 		}
+
 		models.CardDetails{
 			Number:     s.getValue("Number:"),
 			Cardholder: s.getValue("Cardholder:"),
 			Cvc:        uint32(value),
-		}.SetPrivateData(&v)
+		}.SetPrivateData(&record)
 	default:
 		return errors.New("incorrect detailType")
 	}
 
-	if _, err := s.client.AddRecord(ctx, &v); err != nil {
+	if _, err := s.client.AddRecord(ctx, &record); err != nil {
 		return err
 	}
 	return nil
@@ -136,7 +177,6 @@ func (s *Client) choose(choices Choices) string {
 	for k, v := range choices {
 		fmt.Printf("%v - %v\n", k, v)
 	}
-	fmt.Println("---------------------")
 	scanner.Scan()
 	return scanner.Text()
 }

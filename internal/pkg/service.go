@@ -2,13 +2,16 @@ package pkg
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
 	"github.com/syols/keeper/config"
@@ -32,16 +35,35 @@ func NewGrpcService(ctx context.Context, settings config.Config) (GrpcService, e
 		return GrpcService{}, err
 	}
 
-	var opts []grpc.ServerOption
+	grpcServer, err := grpcServer(settings, err)
+	if err != nil {
+		return GrpcService{}, err
+	}
+
 	service := GrpcService{
 		ctx:        ctx,
 		authorizer: NewAuthorizer(settings),
 		database:   database,
-		grpcServer: grpc.NewServer(opts...),
+		grpcServer: grpcServer,
 		settings:   settings,
 	}
 	pb.RegisterKeeperServer(service.grpcServer, service)
 	return service, nil
+}
+
+func grpcServer(settings config.Config, err error) (*grpc.Server, error) {
+	// Added to simplify debugging, environment variables are supported and TLS
+	if settings.Server.Certificate == nil || settings.Server.PrivateKey == nil {
+		var opts []grpc.ServerOption
+		return grpc.NewServer(opts...), nil
+	}
+
+	cert, err := tls.X509KeyPair([]byte(*settings.Server.Certificate), []byte(*settings.Server.PrivateKey))
+	if err != nil {
+		log.Fatal("failed to load cert and key", err)
+	}
+	cred := credentials.NewServerTLSFromCert(&cert)
+	return grpc.NewServer(grpc.Creds(cred)), nil
 }
 
 func (g *GrpcService) Run(port uint16) error {
